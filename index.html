@@ -41,6 +41,9 @@ canvas{width:100%;height:230px;display:block}
 button{border:0;border-radius:10px;padding:11px 15px;font-weight:bold;cursor:pointer;font-size:12px}
 .btn-red{background:var(--red);color:#210a10}.btn-secondary{background:#20334d;color:var(--text);border:1px solid #344b68}
 button:hover{filter:brightness(1.08)}
+.btn-blue{background:#24558a;color:#eef6ff;border:1px solid #3976b7}
+.ble-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 15px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#101c2d}
+.ble-actions{display:flex;gap:8px;flex-wrap:wrap}.ble-log{font-family:Consolas,monospace;font-size:12px;color:#c9d8ec;max-height:90px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin-top:8px}
 .footer{color:var(--muted);font-size:11px;text-align:center;margin:22px 0 0}
 .demo{color:var(--yellow);font-size:11px;font-weight:bold;letter-spacing:.8px}
 @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lower{grid-template-columns:1fr}}
@@ -55,7 +58,7 @@ button:hover{filter:brightness(1.08)}
   </div>
   <div class="header-right">
     <div class="pill"><span class="dot"></span><span id="connection">Bluetooth: Not connected</span></div>
-    <div class="pill">DEMO MODE</div>
+    <div class="pill">DEMO MODE · SENSOR VALUES SIMULATED</div>
   </div>
 </header>
 
@@ -68,6 +71,18 @@ button:hover{filter:brightness(1.08)}
     </div>
     <div id="overallStatus" class="status"><span>●</span><span id="statusText">NORMAL</span></div>
   </div>
+
+  <section class="ble-panel">
+    <div>
+      <div style="font-weight:bold;font-size:13px">Pico 2 W Bluetooth</div>
+      <div class="muted" id="bleMessage">Not connected · Demo readings are still simulated</div>
+      <div class="ble-log" id="bleLog">Waiting for Pico UART data...</div>
+    </div>
+    <div class="ble-actions">
+      <button class="btn-blue" id="connectBleBtn">CONNECT PICO BLUETOOTH</button>
+      <button class="btn-secondary" id="disconnectBleBtn" disabled>DISCONNECT</button>
+    </div>
+  </section>
 
   <section class="grid">
     <article class="card">
@@ -108,7 +123,7 @@ button:hover{filter:brightness(1.08)}
       <div class="motion-row"><span>Temperature sensor</span><span class="tag">DEMO</span></div>
       <div class="motion-row"><span>Pulse sensor</span><span class="tag">DEMO</span></div>
       <div class="motion-row"><span>MPU6050</span><span class="tag">DEMO</span></div>
-      <div class="motion-row"><span>Bluetooth link</span><span class="tag yellow">NOT CONNECTED</span></div>
+      <div class="motion-row"><span>Bluetooth link</span><span class="tag yellow" id="bleTag">NOT CONNECTED</span></div>
       <div class="motion-row"><span>AI classification</span><span class="tag yellow">NOT INTEGRATED</span></div>
       <div class="controls">
         <button class="btn-red" id="emergencyBtn">SEND MANUAL EMERGENCY</button>
@@ -134,6 +149,82 @@ let nextAbnormalAt = Date.now() + randomBetween(12000, 26000);
 let alerts = [];
 let history = [];
 let manualAlertActive = false;
+let bleDevice = null;
+let bleServer = null;
+let bleTxCharacteristic = null;
+let bleRxCharacteristic = null;
+let bleConnected = false;
+let bleReceiveBuffer = '';
+
+const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+function setBleStatus(connected, message){
+  bleConnected = connected;
+  $('connection').textContent = connected ? 'Bluetooth: Connected to Pico' : 'Bluetooth: Not connected';
+  $('bleMessage').textContent = message;
+  $('bleTag').textContent = connected ? 'CONNECTED' : 'NOT CONNECTED';
+  $('bleTag').className = connected ? 'tag' : 'tag yellow';
+  $('connectBleBtn').disabled = connected;
+  $('disconnectBleBtn').disabled = !connected;
+}
+function logBle(text){
+  const el = $('bleLog');
+  const stamp = new Date().toLocaleTimeString();
+  el.textContent = `[${stamp}] ${text}\n` + (el.textContent.startsWith('Waiting for') ? '' : el.textContent);
+}
+function handleBleNotification(event){
+  const value = event.target.value;
+  const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  bleReceiveBuffer += new TextDecoder().decode(bytes);
+  // Keep the display bounded if a sender streams without line breaks.
+  if (bleReceiveBuffer.length > 500) bleReceiveBuffer = bleReceiveBuffer.slice(-500);
+  const parts = bleReceiveBuffer.split(/\r?\n/);
+  bleReceiveBuffer = parts.pop() || '';
+  parts.filter(Boolean).forEach(line => logBle('Pico: ' + line));
+  if (parts.length === 0 && bleReceiveBuffer.length) logBle('Pico: ' + bleReceiveBuffer);
+}
+function onBleDisconnected(){
+  bleTxCharacteristic = null;
+  bleRxCharacteristic = null;
+  bleServer = null;
+  setBleStatus(false, 'Disconnected · Demo readings continue; sensor values are not live');
+  logBle('Pico disconnected');
+}
+async function connectPicoBluetooth(){
+  if (!('bluetooth' in navigator)){
+    alert('Web Bluetooth is not available in this browser. Open this HTTPS page in Google Chrome on the laptop.');
+    return;
+  }
+  try{
+    $('connectBleBtn').disabled = true;
+    $('bleMessage').textContent = 'Choose PicoUART in the Bluetooth device list...';
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{namePrefix: 'Pico'}],
+      optionalServices: [UART_SERVICE_UUID]
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+    bleServer = await bleDevice.gatt.connect();
+    const service = await bleServer.getPrimaryService(UART_SERVICE_UUID);
+    bleTxCharacteristic = await service.getCharacteristic(UART_TX_UUID);
+    bleRxCharacteristic = await service.getCharacteristic(UART_RX_UUID);
+    await bleTxCharacteristic.startNotifications();
+    bleTxCharacteristic.addEventListener('characteristicvaluechanged', handleBleNotification);
+    setBleStatus(true, 'Connected to ' + (bleDevice.name || 'Pico') + ' · Receiving BLE test stream');
+    $('bleLog').textContent = 'Connected. Waiting for incoming data...';
+    logBle('BLE connection established');
+    // The current SerialBLE example sends a counter and a test text, not sensor readings.
+  }catch(error){
+    console.error(error);
+    setBleStatus(false, 'Connection failed: ' + (error.message || error));
+    $('connectBleBtn').disabled = false;
+  }
+}
+async function disconnectPicoBluetooth(){
+  if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+  else onBleDisconnected();
+}
 
 function randomBetween(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function timeNow(){ return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
@@ -216,6 +307,9 @@ $('emergencyBtn').addEventListener('click',()=>{
   setTimeout(()=>{manualAlertActive=false;},8000);
 });
 $('resetBtn').addEventListener('click',()=>{alerts=[];renderAlerts();});
+$('connectBleBtn').addEventListener('click', connectPicoBluetooth);
+$('disconnectBleBtn').addEventListener('click', disconnectPicoBluetooth);
+if (!('bluetooth' in navigator)) { $('bleMessage').textContent = 'Web Bluetooth unavailable in this browser. Use Google Chrome on HTTPS.'; }
 update();
 setInterval(update,2000);
 </script>
