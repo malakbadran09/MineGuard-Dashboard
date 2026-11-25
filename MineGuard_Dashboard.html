@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MineGuard | Smart Miner Safety System</title>
+<style>
+:root{
+  --bg:#08111f;--panel:#111e30;--panel2:#15243a;--line:#263750;
+  --text:#edf4ff;--muted:#91a3bb;--green:#35d39a;--yellow:#f5c451;
+  --red:#ff6575;--blue:#62a8ff;--shadow:0 12px 32px rgba(0,0,0,.22)
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 15% 0%,#152944 0,#08111f 42%);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:22px 5%;border-bottom:1px solid var(--line);background:rgba(8,17,31,.78);position:sticky;top:0;z-index:5;backdrop-filter:blur(12px)}
+.brand{display:flex;align-items:center;gap:13px}.logo{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#f5c451,#d68c22);display:grid;place-items:center;color:#101827;font-size:23px;font-weight:900}
+h1{font-size:21px;margin:0;letter-spacing:.5px}.subtitle{color:var(--muted);font-size:12px;margin-top:4px}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pill{border:1px solid var(--line);border-radius:30px;padding:9px 13px;font-size:12px;color:var(--muted);background:#101c2d}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:7px}
+main{max-width:1250px;margin:28px auto;padding:0 22px 40px}
+.topline{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px}.eyebrow{font-size:11px;color:var(--blue);font-weight:bold;letter-spacing:1.5px;text-transform:uppercase}
+h2{font-size:25px;margin:7px 0 4px}.muted{color:var(--muted);font-size:13px;line-height:1.5}
+.status{display:flex;align-items:center;gap:10px;border:1px solid rgba(53,211,154,.35);background:rgba(53,211,154,.09);padding:11px 16px;border-radius:12px;color:var(--green);font-weight:bold;font-size:13px}
+.status.abnormal{color:var(--red);border-color:rgba(255,101,117,.4);background:rgba(255,101,117,.1)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}
+.card{background:linear-gradient(145deg,var(--panel),#0e1a2a);border:1px solid var(--line);border-radius:17px;padding:19px;box-shadow:var(--shadow);min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.7px}
+.icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#1b304b;font-size:17px}
+.value{font-size:35px;font-weight:750;margin:19px 0 5px;letter-spacing:-1px}.unit{font-size:14px;color:var(--muted);font-weight:normal;letter-spacing:0}
+.note{font-size:12px;color:var(--muted)}.good{color:var(--green)}.warn{color:var(--yellow)}.bad{color:var(--red)}
+.lower{display:grid;grid-template-columns:1.55fr 1fr;gap:15px;margin-top:15px}
+.section-title{font-size:15px;margin:0 0 5px}.section-desc{font-size:12px;color:var(--muted);margin-bottom:16px}
+canvas{width:100%;height:230px;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:10px}.legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:6px}
+.motion-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--line);font-size:13px}.motion-row:last-child{border:0}
+.tag{padding:6px 9px;border-radius:20px;background:rgba(53,211,154,.1);color:var(--green);font-size:11px;font-weight:bold}.tag.yellow{background:rgba(245,196,81,.12);color:var(--yellow)}.tag.red{background:rgba(255,101,117,.12);color:var(--red)}
+.alerts{margin-top:15px}.alert-list{display:flex;flex-direction:column;gap:9px;max-height:220px;overflow:auto}
+.alert-item{display:flex;gap:11px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:12px;background:#0e1a2a}
+.alert-symbol{font-size:17px}.alert-text{font-size:12px;line-height:1.45}.alert-time{color:var(--muted);font-size:10px;margin-top:4px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
+button{border:0;border-radius:10px;padding:11px 15px;font-weight:bold;cursor:pointer;font-size:12px}
+.btn-red{background:var(--red);color:#210a10}.btn-secondary{background:#20334d;color:var(--text);border:1px solid #344b68}
+button:hover{filter:brightness(1.08)}
+.footer{color:var(--muted);font-size:11px;text-align:center;margin:22px 0 0}
+.demo{color:var(--yellow);font-size:11px;font-weight:bold;letter-spacing:.8px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lower{grid-template-columns:1fr}}
+@media(max-width:520px){header{padding:15px 4%}.brand h1{font-size:17px}.logo{width:38px;height:38px}main{padding:0 13px 30px;margin-top:20px}.topline{align-items:flex-start;flex-direction:column}.grid{gap:10px}.card{padding:14px}.value{font-size:29px;margin:15px 0 5px}.card-head{font-size:10px}.pill{font-size:10px;padding:8px 10px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">M</div>
+    <div><h1>MINEGUARD</h1><div class="subtitle">Smart Miner Safety System</div></div>
+  </div>
+  <div class="header-right">
+    <div class="pill"><span class="dot"></span><span id="connection">Bluetooth: Not connected</span></div>
+    <div class="pill">DEMO MODE</div>
+  </div>
+</header>
+
+<main>
+  <div class="topline">
+    <div>
+      <div class="eyebrow">Worker monitoring</div>
+      <h2>Safety Overview</h2>
+      <div class="muted">Live-style demonstration readings · Refreshes every 2 seconds</div>
+    </div>
+    <div id="overallStatus" class="status"><span>●</span><span id="statusText">NORMAL</span></div>
+  </div>
+
+  <section class="grid">
+    <article class="card">
+      <div class="card-head"><span>Temperature</span><span class="icon">🌡</span></div>
+      <div class="value"><span id="temp">37.2</span><span class="unit"> °C</span></div>
+      <div class="note" id="tempNote">Within demo range</div>
+    </article>
+    <article class="card">
+      <div class="card-head"><span>Heart Rate</span><span class="icon">♥</span></div>
+      <div class="value"><span id="pulse">85</span><span class="unit"> BPM</span></div>
+      <div class="note" id="pulseNote">Within demo range</div>
+    </article>
+    <article class="card">
+      <div class="card-head"><span>Movement</span><span class="icon">〰</span></div>
+      <div class="value" style="font-size:27px" id="movement">Stable</div>
+      <div class="note" id="movementNote">No unusual movement</div>
+    </article>
+    <article class="card">
+      <div class="card-head"><span>Warning LED</span><span class="icon">🟡</span></div>
+      <div class="value" style="font-size:27px" id="ledState">OFF</div>
+      <div class="note" id="ledNote">No active alert</div>
+    </article>
+  </section>
+
+  <section class="lower">
+    <article class="card">
+      <h3 class="section-title">Vitals Trend</h3>
+      <div class="section-desc">Recent demonstration values (not real sensor measurements)</div>
+      <canvas id="chart" width="760" height="260"></canvas>
+      <div class="legend">
+        <span style="--c:#62a8ff">Temperature (°C)</span>
+        <span style="--c:#35d39a">Heart rate (scaled)</span>
+      </div>
+    </article>
+    <article class="card">
+      <h3 class="section-title">System Status</h3>
+      <div class="section-desc">Monitoring modules and alert controls</div>
+      <div class="motion-row"><span>Temperature sensor</span><span class="tag">DEMO</span></div>
+      <div class="motion-row"><span>Pulse sensor</span><span class="tag">DEMO</span></div>
+      <div class="motion-row"><span>MPU6050</span><span class="tag">DEMO</span></div>
+      <div class="motion-row"><span>Bluetooth link</span><span class="tag yellow">NOT CONNECTED</span></div>
+      <div class="motion-row"><span>AI classification</span><span class="tag yellow">NOT INTEGRATED</span></div>
+      <div class="controls">
+        <button class="btn-red" id="emergencyBtn">SEND MANUAL EMERGENCY</button>
+        <button class="btn-secondary" id="resetBtn">Clear alerts</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="card alerts">
+    <h3 class="section-title">Alert History</h3>
+    <div class="section-desc">Automatic alerts and manual emergency events</div>
+    <div id="alertList" class="alert-list">
+      <div class="muted">No alerts recorded yet.</div>
+    </div>
+  </section>
+  <div class="footer">MineGuard · Demonstration interface only · Values are simulated and must not be used for medical or worker-safety decisions.</div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let abnormalUntil = 0;
+let nextAbnormalAt = Date.now() + randomBetween(12000, 26000);
+let alerts = [];
+let history = [];
+let manualAlertActive = false;
+
+function randomBetween(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function timeNow(){ return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+
+function addAlert(message,type='automatic'){
+  alerts.unshift({message,type,time:timeNow()});
+  alerts = alerts.slice(0,12);
+  renderAlerts();
+}
+function renderAlerts(){
+  const list = $('alertList');
+  if(!alerts.length){list.innerHTML='<div class="muted">No alerts recorded yet.</div>';return;}
+  list.innerHTML=alerts.map(a=>`
+    <div class="alert-item">
+      <div class="alert-symbol">${a.type==='manual'?'🆘':'⚠️'}</div>
+      <div><div class="alert-text"><b>${a.type==='manual'?'MANUAL EMERGENCY':'AUTOMATIC ALERT'}</b> — ${a.message}</div><div class="alert-time">${a.time}</div></div>
+    </div>`).join('');
+}
+function drawChart(){
+  const c=$('chart'),ctx=c.getContext('2d'),w=c.width,h=c.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='#263750';ctx.lineWidth=1;
+  for(let i=0;i<5;i++){let y=20+i*52;ctx.beginPath();ctx.moveTo(38,y);ctx.lineTo(w-10,y);ctx.stroke();}
+  ctx.fillStyle='#91a3bb';ctx.font='12px Arial';
+  ['100','75','50','25','0'].forEach((v,i)=>ctx.fillText(v,5,24+i*52));
+  function line(key,color,scale,offset){
+    if(history.length<2)return;
+    ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=3;
+    history.forEach((p,i)=>{let x=40+i*((w-55)/(Math.max(1,history.length-1)));let val=(p[key]-offset)*scale;let y=h-20-val;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+    ctx.stroke();
+  }
+  line('temp','#62a8ff',45,36);
+  line('pulse','#35d39a',1.65,55);
+}
+function update(){
+  const now=Date.now();
+  let temp=Number((37+Math.random()*.5).toFixed(1));
+  let pulse=randomBetween(70,100);
+  let movement='Stable';
+
+  if(now>=nextAbnormalAt && now>abnormalUntil){
+    abnormalUntil=now+randomBetween(4000,10000);
+    nextAbnormalAt=abnormalUntil+randomBetween(18000,35000);
+    const kind=randomBetween(1,3);
+    if(kind===1)temp=Number((37.8+Math.random()*.8).toFixed(1));
+    if(kind===2)pulse=randomBetween(105,125);
+    if(kind===3)movement='Sudden Movement';
+    addAlert(kind===1?'Temperature outside demo range':kind===2?'Heart rate outside demo range':'Unusual movement detected');
+  }
+  if(now<abnormalUntil && movement==='Stable' && Math.random()<.35)movement='Moving';
+
+  const abnormal=temp>37.5 || pulse>100 || movement==='Sudden Movement';
+  const active=abnormal || manualAlertActive;
+
+  $('temp').textContent=temp.toFixed(1);
+  $('pulse').textContent=pulse;
+  $('movement').textContent=movement;
+  $('movementNote').textContent=movement==='Stable'?'No unusual movement':movement==='Moving'?'Worker is moving':'Unusual movement detected';
+  $('tempNote').textContent=temp>37.5?'Outside demo range':'Within demo range';
+  $('pulseNote').textContent=pulse>100?'Outside demo range':'Within demo range';
+  $('tempNote').className='note '+(temp>37.5?'bad':'good');
+  $('pulseNote').className='note '+(pulse>100?'bad':'good');
+  $('movementNote').className='note '+(movement==='Sudden Movement'?'bad':movement==='Moving'?'warn':'good');
+  $('overallStatus').className='status'+(active?' abnormal':'');
+  $('statusText').textContent=active?'ABNORMAL':'NORMAL';
+  $('ledState').textContent=active?'ON':'OFF';
+  $('ledState').className='value '+(active?'bad':'good');
+  $('ledNote').textContent=manualAlertActive?'Manual emergency active':active?'Automatic warning active':'No active alert';
+  history.push({temp,pulse});if(history.length>24)history.shift();
+  drawChart();
+}
+$('emergencyBtn').addEventListener('click',()=>{
+  manualAlertActive=true;
+  addAlert('Manual emergency button pressed','manual');
+  $('overallStatus').className='status abnormal';
+  $('statusText').textContent='EMERGENCY';
+  $('ledState').textContent='ON';
+  $('ledState').className='value bad';
+  $('ledNote').textContent='Manual emergency active';
+  setTimeout(()=>{manualAlertActive=false;},8000);
+});
+$('resetBtn').addEventListener('click',()=>{alerts=[];renderAlerts();});
+update();
+setInterval(update,2000);
+</script>
+</body>
+</html>
